@@ -12,6 +12,12 @@ from API.models import *
 from API.serializers import Face_CollectionSerializer
 import curlify
 
+def get_soap_request(content):
+  soap_req = "curl -X POST http://127.0.0.1:8000/soap/ -H 'Content-Type: text/xml;charset=UTF-8'"
+  soap_req += " --data '<soapenv:Envelope xmlns:soapenv="+'"http://schemas.xmlsoap.org/soap/envelope/"'+ ' xmlns:djan="django.soap.example"'+"><soapenv:Header/><soapenv:Body>"
+  soap_req += content
+  return soap_req
+
 face_detection_pcDetector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml");
 face_detection_webcamDetector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml");
 recognizer = cv2.face.LBPHFaceRecognizer_create()
@@ -72,7 +78,9 @@ class PcCamera(object):
         
         detected.restful_response_json = str(js)
         detected.restful_response_xml = str(xml)
-        detected.request = 'curl -X GET http://127.0.0.1:8000/api/face/{0}'.format(str(detected.id))
+        content = "<djan:get_face> <djan:id>" + str(detected.id) + "</djan:id> <djan:pid>"+ str(self.owner.id) +"</djan:pid></djan:get_face></soapenv:Body></soapenv:Envelope>'"
+        soap_request = get_soap_request(content)
+        detected.request = soap_request
         detected.save()
 
     # gets the frame that comes from the camera
@@ -208,7 +216,9 @@ class IPWebCam(object):
         
         detected.restful_response_json = str(js)
         detected.restful_response_xml = str(xml)
-        detected.request = 'curl -X GET http://127.0.0.1:8000/api/face/{0}'.format(str(detected.id))
+        content = "<djan:get_face> <djan:id>" + str(detected.id) + "</djan:id> <djan:pid>"+ str(self.owner.id) +"</djan:pid></djan:get_face></soapenv:Body></soapenv:Envelope>'"
+        soap_request = get_soap_request(content)
+        detected.request = soap_request
         detected.save()
 
     def getFlag(self):

@@ -2,8 +2,11 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
+from API import soap
 
 urlpatterns = [
     path(r'admin/', admin.site.urls),
     path(r'', include('API.urls')),
+    path(r'soap/', soap.INIT()),
+    
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

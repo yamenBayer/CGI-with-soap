@@ -37,13 +37,13 @@
 
 {% block Content %}
 
-<div class="modal fade" id="Restful_response_json">
+<div class="modal fade" id="Soap">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
 
       <!-- Modal Header -->
       <div class="modal-header">
-        <h4 class="modal-title">Restful API | Json</h4>
+        <h4 class="modal-title">Soap API</h4>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
@@ -77,47 +77,6 @@
   </div>
 </div>
 
-<div class="modal fade" id="Restful_response_xml">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-
-      <!-- Modal Header -->
-      <div class="modal-header">
-        <h4 class="modal-title">Restful API | Xml</h4>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-
-      <!-- Modal body -->
-      <div class="modal-body">
-        <div class="row">
-
-          <div class="col-sm-6 col-lg-6">
-            <h2 class="main-title">Request</h2><hr>
-            <div class="card p-5 scrollable">
-                <h4 class="text-muted">{{req}}</h4>
-            </div>      
-          </div>
-          <div class="col-sm-6 col-lg-6">
-            <h2 class="main-title">Response</h2><hr>
-            <div class="card p-5 scrollable">
-                
-                <h4 class="text-muted">{{resX}}</h4> 
-            </div>
-          </div>
-       
-      </div>
-      </div>
-
-
-      <!-- Modal footer -->
-      <div class="modal-footer">
-        <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-      </div>
-
-    </div>
-  </div>
-</div>
-
 
 <div class="row">
 
@@ -126,13 +85,9 @@
   </div>
 
   <div class="col-sm-6 col-lg-6 py-2" style="display: flex; justify-content: flex-end; align-items: center;">
-    <button data-bs-toggle="modal" data-bs-target="#Restful_response_json" class="btn btn-primary me-2" type="button" title="Restful Json">
-      <span class="sr-only">Restful Json</span>
-      <span>Restful Json</span>	
-    </button> 
-    <button data-bs-toggle="modal" data-bs-target="#Restful_response_xml" class="btn btn-primary me-2" type="button" title="Restful Xml">
-      <span class="sr-only">Restful Xml</span>
-      <span>Restful Xml</span>	
+    <button data-bs-toggle="modal" data-bs-target="#Soap" class="btn btn-primary me-2" type="button" title="Soap API">
+      <span class="sr-only">Soap</span>
+      <span>Soap</span>	
     </button>
   <button onclick="Clear_Faces()" class="btn btn-danger" type="button" title="Clear">
     <span class="sr-only">Delete</span>
@@ -170,10 +125,6 @@
             <div class="col-sm-6 col-lg-6">
               <h2 class="main-title">Response</h2><hr>
               <div class="card p-5 scrollable">
-                  <h3>Restful<hr></h3>
-                  <h4>Json: </h4>
-                  <h4 class="text-muted">{{detectedPerson.restful_response_json}}</h4>
-                  <h4>Xml: </h4>
                   <h4 class="text-muted">{{detectedPerson.restful_response_xml}}</h4>
               </div>
             </div>

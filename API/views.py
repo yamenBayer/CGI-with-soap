@@ -25,6 +25,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework_xml.renderers import XMLRenderer
 from dicttoxml import dicttoxml
 import curlify
+from suds.client import Client
+from suds.cache import NoCache
+
 ######################### Global variables #########################
 pc_camera = None
 webcam_cameras = []
@@ -32,6 +35,12 @@ webcam_cameras_ips = []
 #####################################################################
 
 ######################### Functions ######################### 
+def get_soap_request(content):
+  soap_req = "curl -X POST http://127.0.0.1:8000/soap/ -H 'Content-Type: text/xml;charset=UTF-8'"
+  soap_req += " --data '<soapenv:Envelope xmlns:soapenv="+'"http://schemas.xmlsoap.org/soap/envelope/"'+ ' xmlns:djan="django.soap.example"'+"><soapenv:Header/><soapenv:Body>"
+  soap_req += content
+  return soap_req
+
 def getMyProfile(request):
   try:
     profile = Profile.objects.get(owner = request.user)
@@ -134,6 +143,7 @@ def toHome(request):
         logout(request)
   if request.user.is_authenticated:
     profile = getMyProfile(request)
+    print(profile.id)
     services = Services.objects.filter(owner = profile)
     live_services = Services.objects.filter(owner = profile, type = "Face recognition live", status = True)
     flag = 0
@@ -232,29 +242,32 @@ def signout(request):
     logout(request)
     return redirect('Home')
 
-@api_view(['GET','POST'])
-@renderer_classes([TemplateHTMLRenderer, JSONRenderer, XMLRenderer])
 def toFC(request):
   detectedPhotosClear()
   if request.user.is_authenticated:
     profile = Profile.objects.get(owner = request.user)
     live_services = Services.objects.filter(owner = profile, type = "Face recognition live", status = True)
     face_collection = Face_Collection.objects.filter(owner = profile)
-    serializer = Face_CollectionSerializer(face_collection, many=True)
-    data_json = json.dumps(serializer.data)
-    data_xml = dicttoxml(serializer.data, custom_root='root', attr_type=False)
-
-    if request.accepted_renderer.format == 'html':
-      data = {
-        'myProfile':profile,
-        'live_services':live_services,
-        'face_collection':face_collection,
-        'req':curlify.to_curl(request),
-        'res':data_json,
-        'resX':data_xml
-      }
-      return Response(data , template_name='Face_Collection.html')
-    return Response(serializer.data)
+    client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
+    face_collection = Face_Collection.objects.filter(owner = profile)
+    try:
+      faces = client.service.get_faces(profile.id)
+      serializer = Face_CollectionSerializer(face_collection, many=True)
+      data_xml = dicttoxml(serializer.data, custom_root='root', attr_type=False)
+    except Exception:
+      messages.error(request, "The collection is Empty!")
+      return redirect('Home')
+    content = "<djan:get_faces><djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_faces></soapenv:Body></soapenv:Envelope>'"
+    soap_request = get_soap_request(content)
+    data = {
+      'myProfile': profile,
+      'face_collection': face_collection,
+      'res': data_xml,
+      # 'img': image_path,
+      'req': soap_request,
+      'live_services':live_services
+    }
+    return render(request,'Face_Collection.html', data)
   return redirect('login')
 
 def addService(request):
@@ -493,96 +506,140 @@ def video_recognition(request):
 
   return redirect('login') 
 
-@api_view(['GET'])
+
+
 def get_service(request, api_key):
+  profile = getMyProfile(request)
+  client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
   try:
-    service = Services.objects.get(api_key = api_key)
-  except Services.DoesNotExist:
-    return Response({'Valid': None})
-  serializer = ServicesSerializer(service, many = False)
-  return Response(serializer.data)
+    service = client.service.get_service(api_key, profile.id)
+    serializer = ServicesSerializer(service[0], many = True)
+    xml = dicttoxml(serializer.data, attr_type=False)
+  except:
+    xml = 'Nothing returned!'
+  content = "<djan:get_service><djan:api_key>" + str(api_key) + "</djan:api_key> <djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_service></soapenv:Body></soapenv:Envelope>'"
+  soap_request = get_soap_request(content)
+  data = {
+    'req':soap_request,
+    'res':xml
+    }
+  return render(request, 'Soap_Result.html', data)
 
-@api_view(['GET'])
-def get_services(request, pid):
-  profile = Profile.objects.get(id = pid)
+
+def get_services(request):
+  profile = getMyProfile(request)
+  client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
   try:
-    services = Services.objects.filter(owner = profile)
-  except Services.DoesNotExist:
-    return Response({'Valid': None})
-  serializer = ServicesSerializer(services, many = True)
-  return Response(serializer.data)
+    services = client.service.get_services(profile.id)
+    serializer = ServicesSerializer(services[0], many = True)
+    xml = dicttoxml(serializer.data, attr_type=False)
+  except:
+    xml = 'Nothing returned!'
+  content = "<djan:get_services><djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_services></soapenv:Body></soapenv:Envelope>'"
+  soap_request = get_soap_request(content)
+  data = {
+    'req':soap_request,
+    'res':xml
+    }
+  return render(request, 'Soap_Result.html', data)
 
-@api_view(['GET'])
+
 def get_service_faces(request, api_key):
+  profile = getMyProfile(request)
+  client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
   try:
-    faces = Face_Collection.objects.filter(api_key = api_key)
-  except Services.DoesNotExist:
-    return Response({'Valid': None})
-  serializer = Face_CollectionSerializer(faces, many = True)
-  return Response(serializer.data)
+    faces = client.service.get_service_faces(api_key, profile.id)
+    serializer = Face_CollectionSerializer(faces[0], many = True)
+    xml = dicttoxml(serializer.data, attr_type=False)
+  except:
+    xml = 'Nothing returned!'
+  content = "<djan:get_service_faces> <djan:api_key>" + str(api_key) + "</djan:api_key> <djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_service_faces></soapenv:Body></soapenv:Envelope>'"
+  soap_request = get_soap_request(content)
+  data = {
+    'req':soap_request,
+    'res':xml
+    }
+  return render(request, 'Soap_Result.html', data)
 
-@api_view(['GET'])
-def get_face(request, fid):
+def get_face(request, id):
+  profile = getMyProfile(request)
+  client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
   try:
-    face = Face_Collection.objects.get(id = fid)
-  except Face_Collection.DoesNotExist:
-    return Response({'Valid': None})
-  serializer = Face_CollectionSerializer(face, many = False)
-  return Response(serializer.data)
+    face = client.service.get_face(id, profile.id)
+    serializer = Face_CollectionSerializer(face[0], many = True)
+    xml = dicttoxml(serializer.data, attr_type=False)
+  except Exception:
+    xml = 'Nothing returned!'  
+  content = "<djan:get_face> <djan:id>" + str(id) + "</djan:id> <djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_face></soapenv:Body></soapenv:Envelope>'"
+  soap_request = get_soap_request(content)
+  data = {
+    'req':soap_request,
+    'res':xml
+    }
+  return render(request, 'Soap_Result.html', data)
+
+def get_faces(request):
+  profile = getMyProfile(request)
+  client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
+  try:
+    faces = client.service.get_faces(profile.id)
+    serializer = Face_CollectionSerializer(faces[0], many = True)
+    xml = dicttoxml(serializer.data, attr_type=False)
+  except:
+    xml = 'Nothing returned!'
+  content = "<djan:get_faces><djan:pid>"+ str(profile.id) +"</djan:pid></djan:get_faces></soapenv:Body></soapenv:Envelope>'"
+  soap_request = get_soap_request(content)
+  data = {
+    'req':soap_request,
+    'res':xml
+    }
+  return render(request, 'Soap_Result.html', data)
 
 
 
-@api_view(['GET','POST'])
-@renderer_classes([TemplateHTMLRenderer, JSONRenderer, XMLRenderer])
 def video_recognition_test(request):
   detectedPhotosClear()
   if request.user.is_authenticated:
     profile = getMyProfile(request)
     services = Services.objects.filter(owner = profile)
+    service = Services.objects.get(api_key = request.POST['api_key'])
     live_services = Services.objects.filter(owner = profile, type = "Face recognition live", status = True)
-    try:
-      service = Services.objects.get(api_key = request.POST['api_key'])
-    except Services.DoesNotExist:
-      messages.error(request, 'Service not found!')
-      return redirect('video_recognition')
     file = request.FILES.get('file')
     video_clear()
     new_file = Video(path = file)
     new_file.save()
-    people = Person.objects.filter()
-    count = people.count() - 1
-    names = getNamesList(people)
+
     if not file:
       return redirect('video_recognition')
-    # try:
-    image_path, queryset = face_recognition.video_recognize(request, service.api_key, profile,str(new_file.path),count,names)
-    # except Exception:
-    #   messages.error(request, "Something went wrong!")
-    #   video_clear()
-    #   return redirect('video_recognition')
+
+    client = Client('http://127.0.0.1:8000/soap/?WSDL', cache=NoCache())
+    real_path = str(new_file.path.name)
+    api_key = str(service.api_key)
+    try:
+      queryset = client.service.video_test(api_key, str(profile.id) , real_path)
+      serializer = Face_CollectionSerializer(queryset[0], many = True)
+      xml = dicttoxml(serializer.data, attr_type=False)
+    except:
+      messages.error(request, "Somthing went wrong!!")
+      video_clear()
+      return redirect('video_recognition')
     if queryset is None:
       messages.error(request, "Nothing detected!")
       video_clear()
       return redirect('video_recognition')
-    if request.accepted_renderer.format == 'html':
-        serializer = Face_CollectionSerializer(queryset, many=True)
-        ser_json = json.dumps(serializer.data)
-        ser_xml = dicttoxml(serializer.data, custom_root='root', attr_type=False)
-        data = {
-          'myProfile': profile,
-          'service': service,
-          'res': ser_json,
-          'resx': ser_xml,
-          'img': image_path,
-          'req': curlify.to_curl(request),
-          'services':services,
-          'live_services':live_services
-        }
-        return Response(data, template_name='Result.html')
-
-    serializer = Face_CollectionSerializer(queryset, many=True)
-    data = serializer.data
-    return Response(data)
+    image_path = client.service.get_path()
+    content = "<djan:video_test> <djan:api_key>" + str(api_key) + "</djan:api_key> <djan:pid>"+ str(profile.id) +"</djan:pid><djan:path>"+ real_path +"</djan:path></djan:video_test></soapenv:Body></soapenv:Envelope>'"
+    soap_request = get_soap_request(content)
+    data = {
+      'myProfile': profile,
+      'service': service,
+      'res': xml,
+      'img': image_path,
+      'req': soap_request,
+      'services':services,
+      'live_services':live_services
+    }
+    return render(request,'Result.html', data)
 
   return redirect('login')
 

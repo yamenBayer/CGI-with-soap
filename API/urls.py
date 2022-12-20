@@ -26,9 +26,10 @@ urlpatterns = [
     
     # Restful API
     path('api/service/<str:api_key>', views.get_service),
-    path('api/services/<str:pid>', views.get_services),
+    path('api/services', views.get_services),
     path('api/service/faces/<str:api_key>', views.get_service_faces),
-    path('api/face/<str:fid>', views.get_face),
+    path('api/face/<str:id>', views.get_face),
+    path('api/faces', views.get_faces),
 
     path('testing', views.video_recognition_test, name="video_recognition_test"),    
     path('collection', views.toFC, name="Face_Collection"),    

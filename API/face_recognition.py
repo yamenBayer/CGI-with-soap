@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import time
 import cv2
 import numpy as np
 from PIL import Image
@@ -11,13 +13,15 @@ from API.models import Face_Collection
 from dicttoxml import dicttoxml
 import curlify
 
+from API.views import get_soap_request
+
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 recognizer.read('./API/trainer/trainer.yml')   #load trained model
 cascadePath = "./API/haarcascade_frontalface_default.xml"
 faceCascade = cv2.CascadeClassifier(cascadePath)
 font = cv2.FONT_HERSHEY_SIMPLEX
 
-def save(request, service_api_key, owner, now, img , id):
+def save(service_api_key, owner, now, img , id):
     try:
         current_time = now.strftime("%d_%m_%Y_%H_%M_%S")
         path = './API/Face_Collection/detected.%s.png' % current_time
@@ -26,12 +30,12 @@ def save(request, service_api_key, owner, now, img , id):
         detected.save()
 
         dict = Face_CollectionSerializer(detected, many=False)
-        js = json.dumps(dict.data)
         xml = dicttoxml(dict.data, custom_root='root', attr_type=False)
 
-        detected.restful_response_json = str(js)
         detected.restful_response_xml = str(xml)
-        detected.request = 'curl -X GET http://127.0.0.1:8000/api/face/{0}'.format(str(detected.id))
+        content = "<djan:get_face> <djan:id>" + str(detected.id) + "</djan:id> <djan:pid>"+ str(owner.id) +"</djan:pid></djan:get_face></soapenv:Body></soapenv:Envelope>'"
+        soap_request = get_soap_request(content)
+        detected.request = soap_request
         detected.save()
 
         return detected
@@ -92,14 +96,16 @@ def webcam_recognize(ip, count, namesList):
     cv2.destroyAllWindows()
 
 
-def video_recognize(request, service_api_key, owner, videoPath, count, namesList):
-    response = Face_Collection.objects.none()
+def video_recognize(service_api_key, owner, videoPath, count, namesList):
+    response = []
     id = count
     names = namesList
     path = './API/' + videoPath
     print(path)
     vidcap = cv2.VideoCapture(path)
     success, img = vidcap.read(1)
+    if success:
+        print('Success!')
     cv2.imwrite("./API/frames/image.jpg", img)
     width = Image.open('./API/frames/image.jpg').width
     height = Image.open('./API/frames/image.jpg').height
@@ -110,8 +116,9 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
 
     minW = 0.1*width
     minH = 0.1*height
-
-    while success:
+    try_flag = 0
+    while success and try_flag < 2:
+        print(try_flag)
         # image = cv2.resize(img,(int(800),int(600)))
         gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
@@ -141,11 +148,11 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
                     difference = now - last_detection
                     # if the last detected person was from 1 minute and his name is different save it
                     if difference.seconds > 60 or id != person.name:
-                        obj = save(request, service_api_key, owner, now, face_img, id)
-                        response |= Face_Collection.objects.filter(id=obj.id)
+                        obj = save(service_api_key, owner, now, face_img, id)
+                        response.append(obj.id)
                 except Exception:
-                        obj = save(request, service_api_key, owner, now, face_img, id)
-                        response |= Face_Collection.objects.filter(id=obj.id)
+                        obj = save(service_api_key, owner, now, face_img, id)
+                        response.append(obj.id)
                 
             else:
                 id = "unknown"
@@ -156,11 +163,11 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
                     last_detection = person.created_at
                     difference = now - last_detection
                     if difference.seconds > 60 or id != person.name:
-                        obj = save(request, service_api_key, owner, now, face_img, id)
-                        response |= Face_Collection.objects.filter(id=obj.id)
+                        obj = save(service_api_key, owner, now, face_img, id)
+                        response.append(obj.id)
                 except Exception:
-                        obj = save(request, service_api_key, owner, now, face_img, id)
-                        response |= Face_Collection.objects.filter(id=obj.id)
+                        obj = save(service_api_key, owner, now, face_img, id)
+                        response.append(obj.id)
             
             cv2.putText(img, str(id), (x+5,y-5), font, 1, (255,255,255), 2)
             cv2.putText(img, str(confidence), (x+5,y+h-5), font, 1, (255,255,0), 1)  
@@ -171,7 +178,12 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
         except:
             pass
         
-        success, img = vidcap.read()
+        success, img = vidcap.read(1)
+        if not success:
+            vidcap.release()
+            vidcap = cv2.VideoCapture(path)
+            try_flag += 1
+            success, img = vidcap.read(1)
         k = cv2.waitKey(10) & 0xff
         if k == 27:
             vidcap.release()
@@ -180,8 +192,13 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
                 current_time = now.strftime("%d_%m_%Y_%H_%M_%S")
                 path = './API/detected/det.%s.png' % current_time
                 cv2.imwrite(path, detected_photo)
-                return path, response
-            return None, None
+                try:
+                    os.remove("./API/frames/image.jpg")
+                except:
+                    pass
+                response.append(path)
+                return response
+            return None
 
     print("\n [INFO] Exiting Program and cleanup stuff")
     vidcap.release()
@@ -190,6 +207,11 @@ def video_recognize(request, service_api_key, owner, videoPath, count, namesList
         current_time = now.strftime("%d_%m_%Y_%H_%M_%S")
         path = './API/detected/det.%s.png' % current_time
         cv2.imwrite(path, detected_photo)
-        return path, response
-    return None, None
+        try:
+            os.remove("./API/frames/image.jpg")
+        except:
+            pass
+        response.append(path)
+        return response
+    return None
 
