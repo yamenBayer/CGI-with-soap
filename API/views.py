@@ -442,7 +442,7 @@ def run_service(request, sid):
     profile = getMyProfile(request)
     service = Services.objects.get(id = sid)
     if service.owner == profile :
-      if service.type == "Face recognition video" and Services.objects.filter(status = True, type = "Face recognition video").count() > 0:
+      if service.type == "Face recognition video" and Services.objects.filter(owner = profile, status = True, type = "Face recognition video").count() > 0:
         messages.error(request, "Can't run more than one video recognition service!")
       else:
         service.status = True
